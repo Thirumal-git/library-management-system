@@ -1,0 +1,165 @@
+
+CREATE TABLE Users (
+    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    role ENUM('Librarian', 'User') NOT NULL
+
+CREATE TABLE Books (
+    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    title VARCHAR(255) NOT NULL,
+    author VARCHAR(255) NOT NULL,
+    quantity INTEGER NOT NULL
+);
+
+CREATE TABLE BorrowRequests (
+    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    user_id INTEGER NOT NULL,
+    book_id INTEGER NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    status ENUM('Pending', 'Approved', 'Denied') DEFAULT 'Pending',
+    FOREIGN KEY (user_id) REFERENCES Users(id),
+    FOREIGN KEY (book_id) REFERENCES Books(id)
+);
+
+
+CREATE TABLE BorrowHistory (
+    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    user_id INTEGER NOT NULL,
+    book_id INTEGER NOT NULL,
+    borrowed_on DATE NOT NULL,
+    returned_on DATE,
+    FOREIGN KEY (user_id) REFERENCES Users(id),
+    FOREIGN KEY (book_id) REFERENCES Books(id)
+);
+
+
+const express = require('express');
+const bcrypt = require('bcrypt');
+const bodyParser = require('body-parser');
+const basicAuth = require('express-basic-auth');
+
+const app = express();
+app.use(bodyParser.json());
+
+
+const users = {
+    'librarian@example.com': 'password123',
+    'user@example.com': 'password456',
+};
+
+
+app.use(
+    basicAuth({
+        users,
+        challenge: true,
+    })
+);
+
+app.post('/api/users', (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required' });
+    }
+    
+    res.status(201).json({ message: 'User created successfully' });
+});
+
+app.get('/api/borrow-requests', (req, res) => {
+    
+    res.json([{ id: 1, book: 'Book Title', status: 'Pending' }]);
+});
+
+app.put('/api/borrow-requests/:id/approve', (req, res) => {
+  
+    res.json({ message: `Request ${req.params.id} approved` });
+});
+
+app.put('/api/borrow-requests/:id/deny', (req, res) => {
+    
+    res.json({ message: `Request ${req.params.id} denied` });
+});
+
+app.get('/api/users/:id/history', (req, res) => {
+    
+    res.json([{ book: 'Book Title', borrowed_on: '2024-01-01', returned_on: '2024-01-10' }]);
+});
+
+app.get('/api/books', (req, res) => {
+  
+    res.json([{ id: 1, title: 'Book Title', author: 'Author', quantity: 5 }]);
+});
+
+app.post('/api/borrow-requests', (req, res) => {
+    const { book_id, start_date, end_date } = req.body;
+    if (!book_id || !start_date || !end_date) {
+        return res.status(400).json({ error: 'All fields are required' });
+    }
+    
+    res.status(201).json({ message: 'Borrow request submitted' });
+});
+
+
+app.listen(3000, () => {
+    console.log('Server running on port 3000');
+});
+
+
+
+const { Parser } = require('json2csv');
+
+app.get('/api/users/:id/history/csv', (req, res) => {
+    // Fetch user's borrow history (example data)
+    const borrowHistory = [
+        { book: 'Book Title', borrowed_on: '2024-01-01', returned_on: '2024-01-10' },
+    ];
+    const parser = new Parser();
+    const csv = parser.parse(borrowHistory);
+
+    res.header('Content-Type', 'text/csv');
+    res.attachment('borrow_history.csv');
+    res.send(csv);
+});
+
+
+const jwt = require('jsonwebtoken');
+const SECRET_KEY = 'your_secret_key';
+
+app.post('/api/auth/login', (req, res) => {
+    const { email, password } = req.body;
+    // Authenticate user logic
+    const token = jwt.sign({ email, role: 'User' }, SECRET_KEY, { expiresIn: '1h' });
+    res.json({ token });
+});
+
+// Protect routes
+app.use((req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token) return res.sendStatus(401);
+
+    jwt.verify(token, SECRET_KEY, (err, user) => {
+        if (err) return res.sendStatus(403);
+        req.user = user;
+        next();
+    });
+});
+
+
+const swaggerJsDoc = require('swagger-jsdoc');
+const swaggerUi = require('swagger-ui-express');
+
+const swaggerOptions = {
+    swaggerDefinition: {
+        info: {
+            title: 'Library Management API',
+            version: '1.0.0',
+        },
+    },
+    apis: ['./server.js'], // Path to API documentation
+};
+
+const swaggerDocs = swaggerJsDoc(swaggerOptions);
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+
